@@ -1,0 +1,6 @@
+{
+  "name": "claude-pulse-waiting",
+  "description": "Pulses terminal background when Claude Code is waiting for user input",
+  "version": "1.0.0",
+  "author": { "name": "xertrov" }
+}
