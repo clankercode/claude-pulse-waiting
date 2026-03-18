@@ -1,8 +1,13 @@
-import { openSync, writeSync, closeSync } from "node:fs";
+import { openSync, writeSync, closeSync, appendFileSync, statSync } from "node:fs";
 import { getConfig } from "./config.ts";
 import { oscSetBackground, oscResetBackground } from "./osc.ts";
 import { writePid, removePid } from "./pid.ts";
 import type { RGB } from "./config.ts";
+
+const DEBUG_LOG = "/tmp/claude-pulse-debug.log";
+function debug(msg: string) {
+  try { appendFileSync(DEBUG_LOG, `${new Date().toISOString()} daemon: ${msg}\n`); } catch {}
+}
 
 export function lerp(a: RGB, b: RGB, t: number): RGB {
   return {
@@ -12,18 +17,37 @@ export function lerp(a: RGB, b: RGB, t: number): RGB {
   };
 }
 
-export async function runDaemon(sessionId: string): Promise<void> {
+export async function runDaemon(sessionId: string, ttyPath: string): Promise<void> {
+  debug(`starting sessionId=${sessionId} ttyPath=${ttyPath}`);
   const config = getConfig();
-  if (config.disabled) return;
+  if (config.disabled) { debug("disabled, exiting"); return; }
 
   let fd: number;
   try {
-    fd = openSync("/dev/tty", "w");
-  } catch {
+    fd = openSync(ttyPath, "w");
+    debug(`opened ${ttyPath} fd=${fd}`);
+  } catch (err) {
+    debug(`failed to open ${ttyPath}: ${err}`);
     return;
   }
 
   writePid(sessionId);
+  debug(`wrote pid ${process.pid}`);
+
+  // Send desktop notification
+  try {
+    Bun.spawn(["notify-send", "--app-name=Claude Code", "--urgency=low",
+      "--hint=string:desktop-entry:com.mitchellh.ghostty",
+      "Claude Code", "Waiting for your input"], { stdout: "ignore", stderr: "ignore" });
+  } catch {}
+
+  // Record initial TTY atime for activity detection
+  let lastTtyAtime: number;
+  try {
+    lastTtyAtime = statSync(ttyPath).atimeMs;
+  } catch {
+    lastTtyAtime = 0;
+  }
 
   const cleanup = () => {
     writeSync(fd, oscResetBackground());
@@ -46,12 +70,33 @@ export async function runDaemon(sessionId: string): Promise<void> {
     process.exit(0);
   }, config.maxLifetimeMs);
 
+  debug("entering animation loop");
   const start = Date.now();
+  let frames = 0;
   while (true) {
+    // Check for TTY activity (user typing) every ~500ms
+    if (lastTtyAtime > 0 && frames % 10 === 0 && frames > 0) {
+      try {
+        const currentAtime = statSync(ttyPath).atimeMs;
+        if (currentAtime > lastTtyAtime) {
+          debug(`TTY activity detected (atime changed), stopping`);
+          cleanup();
+          process.exit(0);
+        }
+      } catch {}
+    }
+
     const elapsed = Date.now() - start;
     const t = (Math.sin(2 * Math.PI * elapsed / config.cycleMs - Math.PI / 2) + 1) / 2;
     const color = lerp(config.baseColor, config.peakColor, t);
-    writeSync(fd, oscSetBackground(color.r, color.g, color.b));
+    try {
+      writeSync(fd, oscSetBackground(color.r, color.g, color.b));
+    } catch (err) {
+      debug(`writeSync failed at frame ${frames}: ${err}`);
+      break;
+    }
+    frames++;
+    if (frames === 1) debug(`first frame written: t=${t.toFixed(3)} color=rgb(${color.r},${color.g},${color.b})`);
     await Bun.sleep(config.frameMs);
   }
 }
