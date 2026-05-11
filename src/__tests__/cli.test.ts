@@ -1,5 +1,5 @@
 import { describe, test, expect, afterEach } from "bun:test";
-import { existsSync, unlinkSync } from "fs";
+import { existsSync, readFileSync, unlinkSync } from "fs";
 
 const CLI = import.meta.dir + "/../cli.ts";
 
@@ -28,7 +28,7 @@ function cleanup(sessionId: string) {
   const path = pidPath(sessionId);
   if (existsSync(path)) {
     try {
-      const pidStr = Bun.file(path).toString();
+      const pidStr = readFileSync(path, "utf8");
       const pid = parseInt(pidStr.trim(), 10);
       if (!isNaN(pid)) {
         try { process.kill(pid, "SIGTERM"); } catch {}

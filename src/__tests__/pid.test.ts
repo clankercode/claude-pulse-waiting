@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from "bun:test";
-import { pidPath, writePid, readPid, isProcessAlive, removePid } from "../pid.ts";
+import { pidPath, writePid, readPid, isProcessAlive, removePid, removePidIfMatches } from "../pid.ts";
 import { existsSync } from "node:fs";
 
 const sessionId = "test-" + Date.now();
@@ -23,6 +23,11 @@ describe("writePid / readPid", () => {
     writePid(sessionId);
     const pid = readPid(sessionId);
     expect(pid).toBe(process.pid);
+  });
+
+  it("writePid can record a spawned child PID", () => {
+    writePid(sessionId, 12345);
+    expect(readPid(sessionId)).toBe(12345);
   });
 
   it("readPid returns null for missing session", () => {
@@ -52,5 +57,17 @@ describe("removePid", () => {
 
   it("does not throw if PID file does not exist", () => {
     expect(() => removePid("nonexistent-session-" + Date.now())).not.toThrow();
+  });
+
+  it("removePidIfMatches leaves a newer PID file in place", () => {
+    writePid(sessionId, 22222);
+    expect(removePidIfMatches(sessionId, 11111)).toBe(false);
+    expect(readPid(sessionId)).toBe(22222);
+  });
+
+  it("removePidIfMatches removes the matching PID file", () => {
+    writePid(sessionId, 33333);
+    expect(removePidIfMatches(sessionId, 33333)).toBe(true);
+    expect(existsSync(pidPath(sessionId))).toBe(false);
   });
 });

@@ -1,6 +1,7 @@
-import { readPid, writePid, isProcessAlive, removePid } from "./pid.ts";
+import { readPid, writePid, isProcessAlive, removePid, removePidIfMatches } from "./pid.ts";
 import { runDaemon } from "./daemon.ts";
-import { appendFileSync, readFileSync, readlinkSync } from "node:fs";
+import { appendFileSync, existsSync, readFileSync, readlinkSync } from "node:fs";
+import { join } from "node:path";
 
 const DEBUG_LOG = "/tmp/claude-pulse-debug.log";
 function debug(msg: string) {
@@ -29,6 +30,23 @@ function findTtyPath(): string | null {
   return null;
 }
 
+function isScriptEntrypoint(path: string | undefined): path is string {
+  return path !== undefined && /\.(?:[cm]?[tj]s)$/.test(path);
+}
+
+function daemonCommand(sessionId: string, ttyPath: string): string[] {
+  const compiledBinary = join(import.meta.dir, "../bin/claude-pulse");
+  if (existsSync(compiledBinary)) {
+    return [compiledBinary, "daemon", sessionId, ttyPath];
+  }
+
+  if (isScriptEntrypoint(process.argv[1])) {
+    return [process.execPath, "run", process.argv[1], "daemon", sessionId, ttyPath];
+  }
+
+  return [process.argv[0] ?? process.execPath, "daemon", sessionId, ttyPath];
+}
+
 const command = process.argv[2];
 debug(`cli invoked: command=${command} argv=${JSON.stringify(process.argv)}`);
 
@@ -51,10 +69,14 @@ if (command === "start") {
   debug(`start: ttyPath=${ttyPath}`);
   if (!ttyPath) { debug("start: no tty found, exiting"); process.exit(0); }
 
-  const proc = Bun.spawn(
-    ["bun", "run", import.meta.dir + "/cli.ts", "daemon", sessionId, ttyPath],
-    { detached: true, stdin: "ignore", stdout: "ignore", stderr: "ignore" }
-  );
+  const proc = Bun.spawn(daemonCommand(sessionId, ttyPath), {
+    detached: true,
+    stdin: "ignore",
+    stdout: "ignore",
+    stderr: "ignore",
+  });
+  debug(`start: spawned daemon pid=${proc.pid}`);
+  writePid(sessionId, proc.pid);
   proc.unref();
   process.exit(0);
 
@@ -68,10 +90,13 @@ if (command === "start") {
   if (!sessionId) process.exit(0);
 
   const pid = readPid(sessionId);
-  if (pid !== null && isProcessAlive(pid)) {
+  if (pid === null) {
+    removePid(sessionId);
+  } else if (isProcessAlive(pid)) {
     process.kill(pid, "SIGTERM");
+  } else {
+    removePidIfMatches(sessionId, pid);
   }
-  removePid(sessionId);
   process.exit(0);
 
 } else if (command === "daemon") {

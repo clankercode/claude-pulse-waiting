@@ -4,8 +4,8 @@ export function pidPath(sessionId: string): string {
   return `/tmp/claude-pulse-${sessionId}.pid`;
 }
 
-export function writePid(sessionId: string): void {
-  writeFileSync(pidPath(sessionId), process.pid.toString());
+export function writePid(sessionId: string, pid = process.pid): void {
+  writeFileSync(pidPath(sessionId), pid.toString());
 }
 
 export function readPid(sessionId: string): number | null {
@@ -34,4 +34,12 @@ export function removePid(sessionId: string): void {
   } catch (err: any) {
     if (err.code !== "ENOENT") throw err;
   }
+}
+
+export function removePidIfMatches(sessionId: string, expectedPid: number): boolean {
+  const currentPid = readPid(sessionId);
+  if (currentPid !== expectedPid) return false;
+
+  removePid(sessionId);
+  return true;
 }

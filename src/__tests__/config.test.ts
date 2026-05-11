@@ -78,6 +78,26 @@ describe("getConfig reads env vars", () => {
   });
 });
 
+describe("getConfig guards CPU-sensitive timing values", () => {
+  test("clamps frame interval to a non-spinning minimum", () => {
+    process.env.CLAUDE_PULSE_FRAME_MS = "0";
+    expect(getConfig().frameMs).toBe(16);
+  });
+
+  test("falls back when frame interval is not numeric", () => {
+    process.env.CLAUDE_PULSE_FRAME_MS = "nope";
+    expect(getConfig().frameMs).toBe(50);
+  });
+
+  test("clamps cycle and lifetime intervals to usable minimums", () => {
+    process.env.CLAUDE_PULSE_CYCLE_MS = "0";
+    process.env.CLAUDE_PULSE_MAX_LIFETIME_MS = "-1";
+    const config = getConfig();
+    expect(config.cycleMs).toBe(100);
+    expect(config.maxLifetimeMs).toBe(1000);
+  });
+});
+
 describe("parseHexColor", () => {
   test("parses 6-char hex string correctly", () => {
     expect(parseHexColor("3d2b1a")).toEqual({ r: 61, g: 43, b: 26 });

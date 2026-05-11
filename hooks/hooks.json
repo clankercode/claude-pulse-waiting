@@ -1,19 +1,19 @@
 {
   "hooks": {
     "Stop": [{
-      "hooks": [{"type": "command", "command": "bun run ${CLAUDE_PLUGIN_ROOT}/src/cli.ts start", "timeout": 5}]
+      "hooks": [{"type": "command", "command": "if [ -x \"${CLAUDE_PLUGIN_ROOT}/bin/claude-pulse\" ]; then \"${CLAUDE_PLUGIN_ROOT}/bin/claude-pulse\" start; else bun run \"${CLAUDE_PLUGIN_ROOT}/src/cli.ts\" start; fi", "timeout": 5}]
     }],
     "PermissionRequest": [{
-      "hooks": [{"type": "command", "command": "bun run ${CLAUDE_PLUGIN_ROOT}/src/cli.ts start", "timeout": 5}]
+      "hooks": [{"type": "command", "command": "if [ -x \"${CLAUDE_PLUGIN_ROOT}/bin/claude-pulse\" ]; then \"${CLAUDE_PLUGIN_ROOT}/bin/claude-pulse\" start; else bun run \"${CLAUDE_PLUGIN_ROOT}/src/cli.ts\" start; fi", "timeout": 5}]
     }],
     "UserPromptSubmit": [{
-      "hooks": [{"type": "command", "command": "bun run ${CLAUDE_PLUGIN_ROOT}/src/cli.ts stop", "timeout": 5}]
+      "hooks": [{"type": "command", "command": "if [ -x \"${CLAUDE_PLUGIN_ROOT}/bin/claude-pulse\" ]; then \"${CLAUDE_PLUGIN_ROOT}/bin/claude-pulse\" stop; else bun run \"${CLAUDE_PLUGIN_ROOT}/src/cli.ts\" stop; fi", "timeout": 5}]
     }],
     "PreToolUse": [{
-      "hooks": [{"type": "command", "command": "bun run ${CLAUDE_PLUGIN_ROOT}/src/cli.ts stop", "timeout": 5}]
+      "hooks": [{"type": "command", "command": "if [ -x \"${CLAUDE_PLUGIN_ROOT}/bin/claude-pulse\" ]; then \"${CLAUDE_PLUGIN_ROOT}/bin/claude-pulse\" stop; else bun run \"${CLAUDE_PLUGIN_ROOT}/src/cli.ts\" stop; fi", "timeout": 5}]
     }],
     "SessionEnd": [{
-      "hooks": [{"type": "command", "command": "bun run ${CLAUDE_PLUGIN_ROOT}/src/cli.ts stop", "timeout": 5}]
+      "hooks": [{"type": "command", "command": "if [ -x \"${CLAUDE_PLUGIN_ROOT}/bin/claude-pulse\" ]; then \"${CLAUDE_PLUGIN_ROOT}/bin/claude-pulse\" stop; else bun run \"${CLAUDE_PLUGIN_ROOT}/src/cli.ts\" stop; fi", "timeout": 5}]
     }]
   }
 }

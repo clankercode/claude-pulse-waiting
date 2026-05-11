@@ -1,7 +1,7 @@
 import { openSync, writeSync, closeSync, appendFileSync, statSync } from "node:fs";
 import { getConfig } from "./config.ts";
 import { oscSetBackground, oscResetBackground } from "./osc.ts";
-import { writePid, removePid } from "./pid.ts";
+import { writePid, removePidIfMatches } from "./pid.ts";
 import type { RGB } from "./config.ts";
 
 const DEBUG_LOG = "/tmp/claude-pulse-debug.log";
@@ -49,10 +49,14 @@ export async function runDaemon(sessionId: string, ttyPath: string): Promise<voi
     lastTtyAtime = 0;
   }
 
+  let cleanedUp = false;
   const cleanup = () => {
-    writeSync(fd, oscResetBackground());
-    closeSync(fd);
-    removePid(sessionId);
+    if (cleanedUp) return;
+    cleanedUp = true;
+
+    try { writeSync(fd, oscResetBackground()); } catch {}
+    try { closeSync(fd); } catch {}
+    removePidIfMatches(sessionId, process.pid);
   };
 
   process.on("SIGTERM", () => {
@@ -93,7 +97,8 @@ export async function runDaemon(sessionId: string, ttyPath: string): Promise<voi
       writeSync(fd, oscSetBackground(color.r, color.g, color.b));
     } catch (err) {
       debug(`writeSync failed at frame ${frames}: ${err}`);
-      break;
+      cleanup();
+      return;
     }
     frames++;
     if (frames === 1) debug(`first frame written: t=${t.toFixed(3)} color=rgb(${color.r},${color.g},${color.b})`);
